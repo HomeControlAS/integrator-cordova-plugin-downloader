@@ -11,9 +11,15 @@ import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.PluginResult;
 import org.apache.cordova.LOG;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import android.webkit.CookieManager;
+import android.database.Cursor;
+import java.io.File;
+import android.util.Log;
 
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
@@ -29,7 +35,7 @@ import java.util.Map;
 import android.os.Environment;
 
 public class Downloader extends CordovaPlugin {
-	
+
   private static final String LOG_TAG = "Downloader";
 
   public static final String WRITE_EXTERNAL_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE;
@@ -47,7 +53,7 @@ public class Downloader extends CordovaPlugin {
   @Override
   public void initialize(final CordovaInterface cordova, final CordovaWebView webView) {
       super.initialize(cordova, webView);
-    
+
 	  downloadManager = (DownloadManager) cordova.getActivity()
                 .getApplication()
                 .getApplicationContext()
@@ -65,12 +71,13 @@ public class Downloader extends CordovaPlugin {
       downloadReceiverCallbackContext = callbackContext;
 
       if(action.equals("download")){
-          if(cordova.hasPermission(WRITE_EXTERNAL_STORAGE)){
-              download(args.getJSONObject(0), callbackContext);
-          }
-          else {
-              cordova.requestPermission(this, DOWNLOAD_ACTION_PERMISSION_REQ_CODE, WRITE_EXTERNAL_STORAGE);
-          }
+             JSONObject params = args.getJSONObject(0).getJSONObject("destinationInExternalPublicDir");
+             if(!linkExist(params.optString("subPath"))) {
+                download(args.getJSONObject(0), callbackContext);
+             } else {
+                 downloadReceiverCallbackContext.error("file already exist");
+                 Log.d("downloadInfo", "file already exist");
+             }
       }
       else{
           callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.INVALID_ACTION));
@@ -79,9 +86,9 @@ public class Downloader extends CordovaPlugin {
 
       return true;
   }
-  
+
   protected boolean download(JSONObject obj, CallbackContext callbackContext) throws JSONException {
-    
+
     DownloadManager.Request request = deserialiseRequest(obj);
 
     IntentFilter intentFilter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
@@ -89,14 +96,36 @@ public class Downloader extends CordovaPlugin {
     webView.getContext().registerReceiver(downloadReceiver, intentFilter);
 
     this.downloadId = downloadManager.enqueue(request);
-      
+
+
     // Don't return any result now, since status results will be sent when events come in from broadcast receiver
     PluginResult pluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
     pluginResult.setKeepCallback(true);
     callbackContext.sendPluginResult(pluginResult);
     return true;
   }
-    
+
+  private boolean linkExist(String url) {
+   File file = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + "/" + url);
+   if (file == null) {
+        throw new IllegalStateException("Failed to get external storage public directory");
+   }
+   return file.isFile();
+  /*
+        DownloadManager.Query query = new DownloadManager.Query();
+        Cursor cursor = downloadManager.query(query);
+        if(cursor.moveToFirst()){
+            String downloadedTo = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+            String[] parsed = downloadedTo.split("/");
+             Log.d("test", parsed[parsed.length - 1] + "url" + url);
+             if(parsed != null) {
+               return parsed[parsed.length - 1].equals(url);
+             }
+        }
+        return false;
+        */
+    }
+
   public void onDestroy() {
     removeDownloadReceiver();
   }
@@ -104,7 +133,7 @@ public class Downloader extends CordovaPlugin {
   private void removeDownloadReceiver(){
 	  try {
 		  webView.getContext().unregisterReceiver(downloadReceiver);
-		} 
+		}
 		catch (Exception e) {
 			LOG.e(LOG_TAG, "Error unregistering download receiver: " + e.getMessage(), e);
 		}
@@ -130,16 +159,16 @@ public class Downloader extends CordovaPlugin {
   }
 
   private BroadcastReceiver downloadReceiver = new BroadcastReceiver() {
-  
+
     @Override
     public void onReceive(Context context, Intent intent) {
-      
+
       long referenceId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-      
+
       DownloadManager.Query query = new DownloadManager.Query();
       query.setFilterById(referenceId);
       Cursor cursor = downloadManager.query(query);
-      
+
       if(cursor.moveToFirst()){
         String downloadedTo = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
         int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
@@ -172,7 +201,9 @@ public class Downloader extends CordovaPlugin {
 
   protected DownloadManager.Request deserialiseRequest(JSONObject obj) throws JSONException {
     DownloadManager.Request req = new DownloadManager.Request(Uri.parse(obj.getString("uri")));
+    String cookie = CookieManager.getInstance().getCookie(obj.getString("uri"));
 
+    req.addRequestHeader("cookie", cookie);
     req.setTitle(obj.optString("title"));
     req.setDescription(obj.optString("description"));
     req.setMimeType(obj.optString("mimeType", null));
