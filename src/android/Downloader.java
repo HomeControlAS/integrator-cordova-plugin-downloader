@@ -17,8 +17,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.webkit.CookieManager;
+
 import android.database.Cursor;
-import java.io.File;
+
 import android.util.Log;
 
 import android.app.DownloadManager;
@@ -32,7 +33,10 @@ import android.Manifest;
 import java.util.HashMap;
 import java.util.Map;
 
+import java.io.File;
+
 import android.os.Environment;
+import android.os.Build;
 
 public class Downloader extends CordovaPlugin {
 
@@ -49,11 +53,12 @@ public class Downloader extends CordovaPlugin {
   private CallbackContext downloadReceiverCallbackContext = null;
   private JSONArray executeArgs;
   long downloadId = 0;
+  private CordovaInterface cordova;
 
   @Override
   public void initialize(final CordovaInterface cordova, final CordovaWebView webView) {
       super.initialize(cordova, webView);
-
+      this.cordova = cordova;
 	  downloadManager = (DownloadManager) cordova.getActivity()
                 .getApplication()
                 .getApplicationContext()
@@ -71,12 +76,19 @@ public class Downloader extends CordovaPlugin {
       downloadReceiverCallbackContext = callbackContext;
 
       if(action.equals("download")){
-             JSONObject params = args.getJSONObject(0).getJSONObject("destinationInExternalPublicDir");
-             if(!linkExist(params.optString("subPath"))) {
-                download(args.getJSONObject(0), callbackContext);
-             } else {
-                 downloadReceiverCallbackContext.error("file already exist");
-                 Log.d("downloadInfo", "file already exist");
+             if(this.cordova.getActivity()
+                                .getApplication()
+                                .getApplicationContext()
+                                .getApplicationInfo().targetSdkVersion >= Build.VERSION_CODES.Q ){
+                     checkIfFileExist(args, callbackContext);
+             }
+             else {
+                if(cordova.hasPermission(WRITE_EXTERNAL_STORAGE)) {
+                    checkIfFileExist(args, callbackContext);
+                }
+                else {
+                    cordova.requestPermission(this, DOWNLOAD_ACTION_PERMISSION_REQ_CODE, WRITE_EXTERNAL_STORAGE);
+                }
              }
       }
       else{
@@ -86,6 +98,22 @@ public class Downloader extends CordovaPlugin {
 
       return true;
   }
+
+  private void checkIfFileExist(JSONArray args, final CallbackContext callbackContext) {
+    try {
+        JSONObject params = args.getJSONObject(0).getJSONObject("destinationInExternalPublicDir");
+         if(!linkExist(params.optString("subPath"))) {
+                  download(args.getJSONObject(0), callbackContext);
+              }
+              else {
+                  downloadReceiverCallbackContext.error("file already exist");
+                  Log.d("downloadInfo", "file already exist");
+              }
+    } catch (JSONException e) {
+        e.printStackTrace();
+    }
+  }
+
 
   protected boolean download(JSONObject obj, CallbackContext callbackContext) throws JSONException {
 
@@ -112,6 +140,9 @@ public class Downloader extends CordovaPlugin {
    }
    return file.isFile();
   /*
+      this part of code checks where file was saved using download manager. For now we don't need this functionality but
+      lets leave it here
+
         DownloadManager.Query query = new DownloadManager.Query();
         Cursor cursor = downloadManager.query(query);
         if(cursor.moveToFirst()){
@@ -123,7 +154,7 @@ public class Downloader extends CordovaPlugin {
              }
         }
         return false;
-        */
+   */
     }
 
   public void onDestroy() {
@@ -201,6 +232,7 @@ public class Downloader extends CordovaPlugin {
 
   protected DownloadManager.Request deserialiseRequest(JSONObject obj) throws JSONException {
     DownloadManager.Request req = new DownloadManager.Request(Uri.parse(obj.getString("uri")));
+
     String cookie = CookieManager.getInstance().getCookie(obj.getString("uri"));
 
     req.addRequestHeader("cookie", cookie);
