@@ -64,7 +64,10 @@ public class Downloader extends CordovaPlugin {
                 .getApplicationContext()
                 .getSystemService(Context.DOWNLOAD_SERVICE);
   }
-
+  /**
+  * Checks if android version is lower then android 29. If so, ask user for write permission.
+  * Triggers download method if file don't exist on specific path.
+  **/
   @Override
   public boolean execute(String action, JSONArray args, final CallbackContext callbackContext) throws JSONException  {
 
@@ -99,10 +102,13 @@ public class Downloader extends CordovaPlugin {
       return true;
   }
 
+  /**
+  * Check if file is already saved on specific location
+  **/
   private void checkIfFileExist(JSONArray args, final CallbackContext callbackContext) {
     try {
         JSONObject params = args.getJSONObject(0).getJSONObject("destinationInExternalPublicDir");
-         if(!linkExist(params.optString("subPath"))) {
+         if(!fileExist(params.optString("subPath"))) {
                   download(args.getJSONObject(0), callbackContext);
               }
               else {
@@ -114,26 +120,7 @@ public class Downloader extends CordovaPlugin {
     }
   }
 
-
-  protected boolean download(JSONObject obj, CallbackContext callbackContext) throws JSONException {
-
-    DownloadManager.Request request = deserialiseRequest(obj);
-
-    IntentFilter intentFilter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-
-    webView.getContext().registerReceiver(downloadReceiver, intentFilter);
-
-    this.downloadId = downloadManager.enqueue(request);
-
-
-    // Don't return any result now, since status results will be sent when events come in from broadcast receiver
-    PluginResult pluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
-    pluginResult.setKeepCallback(true);
-    callbackContext.sendPluginResult(pluginResult);
-    return true;
-  }
-
-  private boolean linkExist(String url) {
+  private boolean fileExist(String url) {
    File file = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + "/" + url);
    if (file == null) {
         throw new IllegalStateException("Failed to get external storage public directory");
@@ -157,8 +144,22 @@ public class Downloader extends CordovaPlugin {
    */
     }
 
-  public void onDestroy() {
-    removeDownloadReceiver();
+  protected boolean download(JSONObject obj, CallbackContext callbackContext) throws JSONException {
+
+    DownloadManager.Request request = deserialiseRequest(obj);
+
+    IntentFilter intentFilter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+
+    webView.getContext().registerReceiver(downloadReceiver, intentFilter);
+
+    this.downloadId = downloadManager.enqueue(request);
+
+
+    // Don't return any result now, since status results will be sent when events come in from broadcast receiver
+    PluginResult pluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
+    pluginResult.setKeepCallback(true);
+    callbackContext.sendPluginResult(pluginResult);
+    return true;
   }
 
   private void removeDownloadReceiver(){
@@ -229,7 +230,9 @@ public class Downloader extends CordovaPlugin {
           this.downloadReceiverCallbackContext.sendPluginResult(result);
       }
   }
-
+  /**
+  * Parsing request sent from web, and making download request for download manager
+  **/
   protected DownloadManager.Request deserialiseRequest(JSONObject obj) throws JSONException {
     DownloadManager.Request req = new DownloadManager.Request(Uri.parse(obj.getString("uri")));
 
@@ -268,5 +271,9 @@ public class Downloader extends CordovaPlugin {
     }
     
     return req;
+  }
+
+  public void onDestroy() {
+    removeDownloadReceiver();
   }
 }
