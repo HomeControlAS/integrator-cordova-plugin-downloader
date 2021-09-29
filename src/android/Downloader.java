@@ -78,6 +78,17 @@ public class Downloader extends CordovaPlugin {
       }
       downloadReceiverCallbackContext = callbackContext;
 
+      if(action.equals("androidTargetSDK")){
+          if(callbackContext != null){
+                  PluginResult result = new PluginResult(PluginResult.Status.OK, this.cordova.getActivity()
+                    .getApplication()
+                    .getApplicationContext()
+                    .getApplicationInfo().targetSdkVersion);
+                  result.setKeepCallback(true);
+                  callbackContext.sendPluginResult(result);
+              }
+      }
+
       if(action.equals("download")){
              if(this.cordova.getActivity()
                                 .getApplication()
