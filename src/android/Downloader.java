@@ -123,7 +123,7 @@ public class Downloader extends CordovaPlugin {
                   download(args.getJSONObject(0), callbackContext);
               }
               else {
-                  downloadReceiverCallbackContext.error("file already exist");
+                  downloadReceiverCallbackContext.error(args.getJSONObject(0).optString("title") + ": file already exist");
                   Log.d("downloadInfo", "file already exist");
               }
     } catch (JSONException e) {
