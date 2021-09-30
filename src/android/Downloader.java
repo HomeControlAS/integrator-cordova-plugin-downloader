@@ -80,20 +80,14 @@ public class Downloader extends CordovaPlugin {
 
       if(action.equals("androidTargetSDK")){
           if(callbackContext != null){
-                  PluginResult result = new PluginResult(PluginResult.Status.OK, this.cordova.getActivity()
-                    .getApplication()
-                    .getApplicationContext()
-                    .getApplicationInfo().targetSdkVersion);
+                  PluginResult result = new PluginResult(PluginResult.Status.OK, Build.VERSION.SDK_INT);
                   result.setKeepCallback(true);
                   callbackContext.sendPluginResult(result);
               }
       }
 
       if(action.equals("download")){
-             if(this.cordova.getActivity()
-                                .getApplication()
-                                .getApplicationContext()
-                                .getApplicationInfo().targetSdkVersion >= Build.VERSION_CODES.Q ){
+             if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ){
                      checkIfFileExist(args, callbackContext);
              }
              else {
